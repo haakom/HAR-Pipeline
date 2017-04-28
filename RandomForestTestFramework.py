@@ -133,17 +133,18 @@ def get_and_make_subdirectories(sub_name, *dirs):
 
 
 if __name__ == "__main__":
-    for i in range(1, 5):
-        config_name = str(i) + "_sensors_affected"
-        print(config_name)
+    for i in range(1, 2):
         experiments = None
         config = configparser.ConfigParser()
-        config.read_file(open(os.path.join(VAGESHAR_ROOT, "configs", "affected_matching", "%s.cfg" % config_name)))
+        config_file_name = "train_healthy_test_stroke.cfg"
+        config_path = os.path.join(VAGESHAR_ROOT, "configs", config_file_name)
+        print(config_path)
+        config.read_file(open(config_path))
 
         now = datetime.now()
         datetime_prefix = now.strftime("%Y%m%d_%H_%M")
 
-        all_experiments_id = datetime_prefix + "_" + config_name
+        all_experiments_id = datetime_prefix + "_" + os.path.splitext(config_file_name)[0]
 
         top_statistics_folder = os.path.join(VAGESHAR_ROOT, "statistics", all_experiments_id)
         top_images_folder = os.path.join(VAGESHAR_ROOT, "images", all_experiments_id)
@@ -216,7 +217,9 @@ if __name__ == "__main__":
                 test_label_paths.update(temp_label_paths)
 
             train_subject_ids = sorted(train_label_paths.keys())
+            print("Training subjects:", train_subject_ids)
             test_subject_ids = sorted(test_label_paths.keys())
+            print("Test subjects:", test_subject_ids)
 
             print("Loading training set")
             train_sensors = Parallel(n_jobs=N_JOBS)(
