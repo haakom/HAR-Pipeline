@@ -284,7 +284,8 @@ if __name__ == "__main__":
                         tmp_subject_sensors, tmp_subject_labels, test_size=0.8, random_state=SEED,
                         stratify=tmp_subject_labels)
 
-                    adapted = cp.mix_new_classifier_from_pool(X_train, y_train, [subject_id])
+                    adapted, activity_to_subject_dict = cp.mix_new_classifier_from_pool(X_train, y_train, [subject_id])
+                    print(activity_to_subject_dict)
                     y_pred = adapted.predict(X_test)
 
                     if NEIGHBOR_SMOOTHING:

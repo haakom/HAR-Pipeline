@@ -62,10 +62,13 @@ class ClassifierPool:
         new_individual = SeparatedActivityClassifier(classifier_type=self._type, random_state=self._random_state,
                                                      class_weight=self._class_weight)
 
+        activity_to_subject_dict = dict()
+
         for activity in activity_accuracies:
             activity_accuracies[activity].sort()
             _, best_subject_id = activity_accuracies[activity].pop()
             best_activity_classifier = self.get_subject_classifier(best_subject_id).get_activity_classifier(activity)
             new_individual.set_activity_classifier(activity, best_activity_classifier)
+            activity_to_subject_dict[activity] = best_subject_id
 
-        return new_individual
+        return new_individual, activity_to_subject_dict
