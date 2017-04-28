@@ -327,7 +327,8 @@ if __name__ == "__main__":
                     X_train, X_test, y_train, y_test = train_test_split(
                         tmp_subject_sensors, tmp_subject_labels, test_size=0.8, random_state=SEED,
                         stratify=tmp_subject_labels)
-                    best = cp.find_best_existing_classifier(X_train, y_train, [subject_id])
+                    best, best_subject_id = cp.find_best_existing_classifier(X_train, y_train, [subject_id])
+                    print(best_subject_id)
                     y_pred = best.predict(X_test)
 
                     if NEIGHBOR_SMOOTHING:

@@ -43,7 +43,7 @@ class ClassifierPool:
 
         scores.sort()
         _, best_subject_id = scores.pop()
-        return self.get_subject_classifier(best_subject_id)
+        return self.get_subject_classifier(best_subject_id), best_subject_id
 
     def mix_new_classifier_from_pool(self, X, y, ignored_ids=None):
         activity_accuracies = defaultdict(list)
