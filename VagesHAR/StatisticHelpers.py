@@ -126,7 +126,8 @@ def print_accuracies(statistic_folder):
         print("\t" + "\t".join(subject_list))
         for root, dirs, files in os.walk(statistic_folder):
             if k in root:
-                print(os.path.split(os.path.split(root)[0])[1], end="\t")
+                sub_test_name = os.path.split(os.path.split(root)[0])[1]
+                print(sub_test_name, end="\t")
                 for s in subject_list:
                     f = os.path.join(root, s + ".json")
                     if os.path.exists(f):
