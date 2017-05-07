@@ -280,7 +280,7 @@ def run_experiments(experiment_collection_path, experiments=None):
                     stratify=tmp_subject_labels)
 
                 adapted, activity_to_subject_dict = cp.mix_new_classifier_from_pool(x_train, y_train, [subject_id])
-                print(activity_to_subject_dict)
+                print("Subject mix:", activity_to_subject_dict)
                 y_pred = adapted.predict(x_test)
 
                 if use_neighbor_smoothing:
@@ -324,7 +324,7 @@ def run_experiments(experiment_collection_path, experiments=None):
                     tmp_subject_sensors, tmp_subject_labels, test_size=0.8, random_state=seed,
                     stratify=tmp_subject_labels)
                 best, best_subject_id = cp.find_best_existing_classifier(x_train, y_train, [subject_id])
-                print(best_subject_id)
+                print("Best subject:", best_subject_id)
                 y_pred = best.predict(x_test)
 
                 if use_neighbor_smoothing:
