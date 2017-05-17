@@ -2,12 +2,17 @@ from __future__ import division, print_function
 
 import itertools
 import json
+from collections import defaultdict
+
 import os
 
 import numpy as np
 
 import matplotlib
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score, confusion_matrix
+
+from VagesHAR import VAGESHAR_ROOT
+from hunt_dataset_definitions import number_to_label_dict
 
 matplotlib.use("Agg")  # Set non-interactive background. Must precede pyplot import.
 import matplotlib.pyplot as plt
@@ -52,7 +57,7 @@ def save_confusion_matrix_image(matrix, classes, normalize=False, title='Confusi
 def specificity_score(y_true, y_pred):
     occurring_classes = sorted(list(set(y_true)))
 
-    specificity_dict = dict()
+    specificity_list = []
 
     for c in occurring_classes:
         binary_y_true = [True if label == c else False for label in y_true]
@@ -61,9 +66,9 @@ def specificity_score(y_true, y_pred):
         # This step is inspired by http://scikit-learn.org/stable/modules/model_evaluation.html#confusion-matrix
         tn, fp, _, _ = confusion_matrix(binary_y_true, binary_y_pred).ravel()
 
-        specificity_dict[c] = tn / (tn + fp)
+        specificity_list.append(tn / (tn + fp))
 
-    return specificity_dict
+    return specificity_list
 
 
 def generate_and_save_statistics_json(y_true, y_pred, number_to_class_name_dict, save_path):
@@ -137,3 +142,146 @@ def print_accuracies(statistic_folder):
                         print("", end="\t")
 
                 print()
+
+
+def average_dicts(dicts):
+    all_results = dict()
+
+    for d in dicts:
+        for score_type in d:
+            score_data = d[score_type]
+            if type(score_data) == float:
+                try:
+                    all_results[score_type].append(score_data)
+                except KeyError:
+                    all_results[score_type] = [score_data]
+            else:
+                try:
+                    _ = all_results[score_type]
+                except KeyError:
+                    all_results[score_type] = dict()
+                for activity in score_data:
+                    activity_score = score_data[activity]
+                    try:
+                        all_results[score_type][activity].append(activity_score)
+                    except KeyError:
+                        all_results[score_type][activity] = [activity_score]
+
+    for k in all_results:
+        if type(all_results[k]) == list:
+            all_results[k] = sum(all_results[k]) / len(all_results[k])
+        else:
+            sub_dict = all_results[k]
+            for s_k in sub_dict:
+                sub_dict[s_k] = sum(sub_dict[s_k]) / len(sub_dict[s_k])
+
+    return all_results
+
+
+def _individualfactory():
+    return defaultdict(list)
+
+
+def _strategyfactory():
+    return defaultdict(_individualfactory)
+
+
+def _subtestfactory():
+    return defaultdict(_strategyfactory)
+
+
+def walk_and_make_average_for_all_tests(path):
+    test_dict = defaultdict(_subtestfactory)
+
+    for r, d, fs in os.walk(path):
+        if os.path.basename(r) in ["best_individual", "general_population", "adaptation"]:
+            strategy = os.path.basename(r)
+            parent_folder = os.path.dirname(r)
+            sub_test_name = os.path.basename(parent_folder)
+            test_name = os.path.basename(os.path.dirname(parent_folder))[15:]
+            for file_path in fs:
+                individual_name = os.path.splitext(file_path)[0]
+                with open(os.path.join(r, file_path), "r") as f:
+                    my_dict = json.load(f)
+                test_dict[test_name][sub_test_name][strategy][individual_name].append(my_dict)
+
+    print("finished this")
+
+    def walk(node, outpath):
+        for key, item in node.items():
+            if type(item) is not list:
+                walk(item, os.path.join(outpath, key))
+            else:
+                a = average_dicts(item)
+                if not os.path.exists(outpath):
+                    os.makedirs(outpath)
+                with open(os.path.join(outpath, key + ".json"), "w") as f:
+                    json.dump(a, f)
+
+    walk(test_dict, os.path.join(VAGESHAR_ROOT, "average_statistics"))
+
+
+def convert_key_to_boolean_array(string):
+    order = [["lb"], ["lt", "at"], ["rt", "ut"], ["lw", "aw"], ["rw", "uw"]]
+
+    boolean_array = []
+    for l in order:
+        for substring in l:
+            if substring in string:
+                boolean_array.append(True)
+                break
+        else:
+            boolean_array.append(False)
+
+    return boolean_array
+
+
+def convert_boolean_array_to_string_array(array, true_string="x", false_string=" "):
+    return [true_string if e else false_string for e in array]
+
+
+def output_tabular_for_statistic_folder(path):
+    """
+    
+    :param path: Path to a test folder
+    :return: 
+    """
+    order = ("general_population", "adaptation", "best_individual")
+
+    score_dict = dict()
+
+    for sub_test in os.listdir(path):
+        sub_test_scores = []
+        for approach in order:
+            with open(os.path.join(path, sub_test, approach, "overall.json"), "r") as f:
+                accuracy = json.load(f)["accuracy"]
+            accuracy_as_percentage_string = str(round(accuracy * 100, 2))
+            sub_test_scores.append(accuracy_as_percentage_string)
+
+        score_dict[sub_test] = sub_test_scores
+
+    rows = []
+    for sub_test in score_dict:
+        rows.append([sub_test] + score_dict[sub_test])
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    print("\\begin{tabular}{|c|c|c|c|c|c|c|c|}")
+    print("\t\\hline")
+    #print("\t", " & ".join(["lb", "lt", "rt", "lw", "rw", "GP", "MP", "SP"]), "\\\\")
+    print("\t", " & ".join(["lb", "at", "ut", "aw", "uw", "GP", "MP", "SP"]), "\\\\")
+    print("\t\\hline")
+    for r in rows:
+        xs = convert_boolean_array_to_string_array(convert_key_to_boolean_array(r[0]))
+        print("\t", " & ".join(xs + r[1:]), "\\\\")
+    print("\t\\hline")
+    print("\\end{tabular}")
+
+
+if __name__ == "__main__":
+    #walk_and_make_average_for_all_tests(os.path.join(VAGESHAR_ROOT, "statistics"))
+
+    for i in range(5):
+        output_tabular_for_statistic_folder(
+            os.path.join(VAGESHAR_ROOT, "average_statistics", str(i + 1) + "_sensors_affected"))
+
