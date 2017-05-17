@@ -3,6 +3,7 @@ from __future__ import print_function, division
 from collections import Counter
 from datetime import datetime
 
+import json
 import numpy as np
 import os
 import configparser
@@ -132,7 +133,7 @@ def get_and_make_subdirectories(sub_name, *dirs):
     return new_dirs
 
 
-def run_experiments(experiment_collection_path, experiments=None):
+def run_experiments(experiment_collection_path, experiments=None, seed=None):
     global RELABEL_DICT, ABSOLUTE_VALUES
 
     config = configparser.ConfigParser()
@@ -146,6 +147,13 @@ def run_experiments(experiment_collection_path, experiments=None):
     all_experiments_id = datetime_prefix + "_" + collection_name
     top_statistics_folder = os.path.join(VAGESHAR_ROOT, "statistics", all_experiments_id)
     top_images_folder = os.path.join(VAGESHAR_ROOT, "images", all_experiments_id)
+    top_single_personalization_folder = os.path.join(VAGESHAR_ROOT, "single_personalization", all_experiments_id)
+    top_multi_personalization_folder = os.path.join(VAGESHAR_ROOT, "multi_personalization", all_experiments_id)
+
+    print("Seed: ", seed)
+    os.makedirs(top_statistics_folder)
+    with open(os.path.join(top_statistics_folder, "seed.txt"), "w") as f:
+        f.write(str(seed) + "\n")
 
     if experiments is None:
         experiments = set(config.keys())
@@ -154,8 +162,6 @@ def run_experiments(experiment_collection_path, experiments=None):
     for experiment_name in experiments:
         print(experiment_name)
         experiment_config = config[experiment_name]
-
-        seed = experiment_config.getint("seed")
 
         activities_to_keep = {int(s) for s in experiment_config.get("activities_to_keep").split(", ")}
         RELABEL_DICT = dict({(int(k), int(v)) for k, v in
@@ -178,9 +184,9 @@ def run_experiments(experiment_collection_path, experiments=None):
         config_test_sensor_codewords = experiment_config.get("test_sensor_codewords").split("; ")
         config_test_sensor_codewords = [s.split(", ") for s in config_test_sensor_codewords]
 
-        test_statistics_folder, test_images_folder = get_and_make_subdirectories(experiment_name,
-                                                                                 top_statistics_folder,
-                                                                                 top_images_folder)
+        test_statistics_folder, test_images_folder, test_single_personalization_folder, test_multi_personalization_folder = get_and_make_subdirectories(
+            experiment_name, top_statistics_folder, top_images_folder, top_single_personalization_folder,
+            top_multi_personalization_folder)
 
         sample_frequency = experiment_config.getfloat("sample_frequency")
         window_length = experiment_config.getfloat("window_length")
@@ -265,11 +271,14 @@ def run_experiments(experiment_collection_path, experiments=None):
         if run_adaptation_test:
             sub_test_name = "adaptation"
             print(sub_test_name)
-            sub_test_statistics, sub_test_images = get_and_make_subdirectories(sub_test_name,
-                                                                               test_statistics_folder,
-                                                                               test_images_folder)
+            sub_test_statistics, sub_test_images, sub_test_multi_personalization_folder = get_and_make_subdirectories(
+                sub_test_name,
+                test_statistics_folder,
+                test_images_folder, test_multi_personalization_folder)
 
             overall_y_test, overall_y_pred = [], []
+
+            best_individuals_for_activity = dict()
 
             for subject_id in test_subject_ids:
                 print(subject_id)
@@ -281,6 +290,7 @@ def run_experiments(experiment_collection_path, experiments=None):
 
                 adapted, activity_to_subject_dict = cp.mix_new_classifier_from_pool(x_train, y_train, [subject_id])
                 print("Subject mix:", activity_to_subject_dict)
+                best_individuals_for_activity[subject_id] = activity_to_subject_dict
                 y_pred = adapted.predict(x_test)
 
                 if use_neighbor_smoothing:
@@ -291,28 +301,37 @@ def run_experiments(experiment_collection_path, experiments=None):
 
                 title = sub_test_name + " " + subject_id
                 png_path = os.path.join(sub_test_images, subject_id + ".png")
-                json_path = os.path.join(sub_test_statistics, subject_id + ".json")
+                statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
                 generate_and_save_confusion_matrix(y_test, y_pred, number_to_label_dict, png_path, title=title)
-                generate_and_save_statistics_json(y_test, y_pred, number_to_label_dict, json_path)
+                generate_and_save_statistics_json(y_test, y_pred, number_to_label_dict, statistics_path)
 
             overall_y_test, overall_y_pred = np.hstack(overall_y_test), np.hstack(overall_y_pred)
             subject_id = "overall"
 
             title = sub_test_name + " " + subject_id
+
+            statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
+            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, statistics_path)
+
             png_path = os.path.join(sub_test_images, subject_id + ".png")
-            json_path = os.path.join(sub_test_statistics, subject_id + ".json")
             generate_and_save_confusion_matrix(overall_y_test, overall_y_pred, number_to_label_dict, png_path,
                                                title=title)
-            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, json_path)
+
+            multi_personalization_json_path = os.path.join(sub_test_multi_personalization_folder, "all.json")
+            with open(multi_personalization_json_path, "w") as f:
+                json.dump(best_individuals_for_activity, f)
 
         if run_best_individual_test:
             sub_test_name = "best_individual"
             print(sub_test_name)
-            sub_test_statistics, sub_test_images = get_and_make_subdirectories(sub_test_name,
-                                                                               test_statistics_folder,
-                                                                               test_images_folder)
+            sub_test_statistics, sub_test_images, sub_test_single_personalization_folder = get_and_make_subdirectories(
+                sub_test_name,
+                test_statistics_folder,
+                test_images_folder, test_single_personalization_folder)
 
             overall_y_test, overall_y_pred = [], []
+
+            best_subjects = dict()
 
             for subject_id in test_subject_ids:
                 print(subject_id)
@@ -325,6 +344,7 @@ def run_experiments(experiment_collection_path, experiments=None):
                     stratify=tmp_subject_labels)
                 best, best_subject_id = cp.find_best_existing_classifier(x_train, y_train, [subject_id])
                 print("Best subject:", best_subject_id)
+                best_subjects[subject_id] = best_subject_id
                 y_pred = best.predict(x_test)
 
                 if use_neighbor_smoothing:
@@ -335,19 +355,25 @@ def run_experiments(experiment_collection_path, experiments=None):
 
                 title = sub_test_name + " " + subject_id
                 png_path = os.path.join(sub_test_images, subject_id + ".png")
-                json_path = os.path.join(sub_test_statistics, subject_id + ".json")
+                statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
                 generate_and_save_confusion_matrix(y_test, y_pred, number_to_label_dict, png_path, title=title)
-                generate_and_save_statistics_json(y_test, y_pred, number_to_label_dict, json_path)
+                generate_and_save_statistics_json(y_test, y_pred, number_to_label_dict, statistics_path)
 
             overall_y_test, overall_y_pred = np.hstack(overall_y_test), np.hstack(overall_y_pred)
             subject_id = "overall"
 
             title = sub_test_name + " " + subject_id
+
+            statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
+            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, statistics_path)
+
             png_path = os.path.join(sub_test_images, subject_id + ".png")
-            json_path = os.path.join(sub_test_statistics, subject_id + ".json")
             generate_and_save_confusion_matrix(overall_y_test, overall_y_pred, number_to_label_dict, png_path,
                                                title=title)
-            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, json_path)
+
+            single_personalization_json_path = os.path.join(sub_test_single_personalization_folder, "all.json")
+            with open(single_personalization_json_path, "w") as f:
+                json.dump(best_subjects, f)
 
         if run_ordinary_rfc_test:
             sub_test_name = "general_population"
@@ -358,42 +384,89 @@ def run_experiments(experiment_collection_path, experiments=None):
 
             overall_y_test, overall_y_pred = [], []
 
+            train_and_test_overlap_ratio = (1 - test_overlap) / (1 - train_overlap)
+
             for subject_id in test_subject_ids:
                 png_path = os.path.join(sub_test_images, subject_id + ".png")
-                json_path = os.path.join(sub_test_statistics, subject_id + ".json")
+                statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
                 print(subject_id)
-                global_pool_ids = sorted(list(set(train_subject_ids) - {subject_id}))
-                x_train = np.vstack([train_sensor_dict[x] for x in global_pool_ids])
-                y_train = np.hstack([train_label_dict[x] for x in global_pool_ids])
+                tmp_subject_sensors, tmp_subject_labels = test_sensor_dict[subject_id], test_label_dict[subject_id]
+                tmp_subject_sensors, tmp_subject_labels = remove_singletons(tmp_subject_sensors, tmp_subject_labels)
+                subject_x_train, subject_x_test, subject_y_train, subject_y_test = train_test_split(
+                    tmp_subject_sensors, tmp_subject_labels, test_size=0.8, random_state=seed,
+                    stratify=tmp_subject_labels)
+
+                other_subject_ids = sorted(list(set(train_subject_ids) - {subject_id}))
+                other_x_train = [train_sensor_dict[other_subject] for other_subject in other_subject_ids]
+                other_y_train = [train_label_dict[other_subject] for other_subject in other_subject_ids]
+                x_train = np.vstack(other_x_train + [subject_x_train])
+                y_train = np.hstack(other_y_train + [subject_y_train])
+
+                no_of_subject_samples = subject_y_train.shape[0]
+                no_of_other_samples = y_train.shape[0] - no_of_subject_samples
+
+                other_sample_weights = np.ones(no_of_other_samples)
+                subject_sample_weights = np.ones(no_of_subject_samples) * train_and_test_overlap_ratio
+
+                sample_weights = np.hstack([other_sample_weights, subject_sample_weights])
+
                 my_forest = Rfc(n_estimators=n_trees, random_state=seed, max_depth=max_depth, n_jobs=n_jobs,
                                 class_weight="balanced")
-                my_forest.fit(x_train, y_train)
+                my_forest.fit(x_train, y_train, sample_weight=sample_weights)
                 print("Testing")
-                x_test = test_sensor_dict[subject_id]
-                y_test = test_label_dict[subject_id]
 
-                y_pred = my_forest.predict(x_test)
+                subject_y_pred = my_forest.predict(subject_x_test)
 
                 if use_neighbor_smoothing:
-                    y_pred = neighbor_smooth_array(y_pred)
+                    subject_y_pred = neighbor_smooth_array(subject_y_pred)
 
-                overall_y_test.append(y_test)
-                overall_y_pred.append(y_pred)
+                overall_y_test.append(subject_y_test)
+                overall_y_pred.append(subject_y_pred)
 
                 title = sub_test_name + " " + subject_id
-                generate_and_save_confusion_matrix(y_test, y_pred, number_to_label_dict, png_path, title=title)
-                generate_and_save_statistics_json(y_test, y_pred, number_to_label_dict, json_path)
+                generate_and_save_confusion_matrix(subject_y_test, subject_y_pred, number_to_label_dict, png_path,
+                                                   title=title)
+                generate_and_save_statistics_json(subject_y_test, subject_y_pred, number_to_label_dict, statistics_path)
 
             overall_y_test, overall_y_pred = np.hstack(overall_y_test), np.hstack(overall_y_pred)
             subject_id = "overall"
 
             title = sub_test_name + " " + subject_id
             png_path = os.path.join(sub_test_images, subject_id + ".png")
-            json_path = os.path.join(sub_test_statistics, subject_id + ".json")
+            statistics_path = os.path.join(sub_test_statistics, subject_id + ".json")
             generate_and_save_confusion_matrix(overall_y_test, overall_y_pred, number_to_label_dict, png_path,
                                                title=title)
-            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, json_path)
+            generate_and_save_statistics_json(overall_y_test, overall_y_pred, number_to_label_dict, statistics_path)
 
+
+# Generated by https://www.random.org/integers/?num=10&min=1&max=268435456&col=1&base=10&format=html&rnd=new
+# Timestamp: 2017-05-07 20:10:01 UTC
+seeds = [2554679,
+         206663454,
+         16273975,
+         262404977,
+         130696134,
+         92839481,
+         32997544,
+         204158098,
+         203423330,
+         76761199]
 
 if __name__ == "__main__":
-    run_experiments(os.path.join(VAGESHAR_ROOT, "configs", "train_healthy_test_stroke.cfg"))
+    config_paths = []
+
+    for i in range(1, 6):
+        config_paths.append(
+            [os.path.join(VAGESHAR_ROOT, "configs", "affected_matching", str(i) + "_sensors_affected.cfg"), None])
+        config_paths.append(
+            [os.path.join(VAGESHAR_ROOT, "configs", "no_stairs", str(i) + "_sensors_no_stairs.cfg"), None])
+
+    print(config_paths)
+
+    for j in range(4):
+        s = seeds[j]
+        for c_path, experiments in config_paths:
+            if not os.path.exists(c_path):
+                print("Path", c_path, "does not exist")
+            else:
+                run_experiments(c_path, experiments, seed=s)
