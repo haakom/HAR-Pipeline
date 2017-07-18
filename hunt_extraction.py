@@ -255,7 +255,7 @@ if __name__ == "__main__":
     except AttributeError:
         non_existent_ids = []
 
-    for i in range(13, 17):
+    for i in [1, 8]:
         if i in non_existent_ids:
             continue
 
@@ -291,7 +291,7 @@ if __name__ == "__main__":
             shifts = None
 
         extract(s_id, cwas, pre_conversion_fix=subject_config.getboolean("pre_conversion_fix"),
-                mph=subject_config.getfloat("mph"), clean_up=True, sensor_label_sync_index=start_index, shifts=shifts,
+                mph=subject_config.getfloat("mph"), clean_up=False, sensor_label_sync_index=start_index, shifts=shifts,
                 starting_drops=subject_config.getint("start_drops"),
                 sampling_frequency=subject_config.getint("sampling_frequency"),
                 max_hours_to_read=subject_config.getint("max_hours_to_read"))
