@@ -1,7 +1,15 @@
-from __future__ import print_function
+from __future__ import print_function, division
 
 import numpy as np
 from collections import Counter
+
+import scipy.stats
+
+from definitions import PROJECT_ROOT
+import os
+
+import cPickle
+import pickle
 
 
 def generate_all_integer_combinations(stop_integer):
@@ -31,7 +39,7 @@ def peak_acceleration(array):
     return max(np.linalg.norm(array, axis=1))
 
 
-def max_and_mins(array):
+def max_and_mins(array):  # Something should be done about this, so it's the largest deviation or something
     return np.hstack(array.max())
 
 
@@ -59,9 +67,9 @@ def most_frequent_value(array):
     return np.array([top])
 
 
-def column_product_factory(columns):
+def column_product_factory(column_indices):
     def columns_product(array):
-        transposed = np.transpose(array)[[columns]]  # Transpose for simpler logic
+        transposed = np.transpose(array)[[column_indices]]  # Transpose for simpler logic
 
         product = np.ones(transposed.shape[1])
         for row in transposed:
@@ -74,16 +82,158 @@ def column_product_factory(columns):
     return columns_product
 
 
-class DataLoader:
-    functions = {'means_and_std': [means_and_std_factory(False)],
-                 'abs_means_and_std': [means_and_std_factory(True)],
-                 'peak_acceleration': [peak_acceleration],
-                 'most_common': [most_frequent_value]}
+def crossing_rate_factory(type='zero'):
+    def crossing_rate(array):
+        if type is 'zero':
+            if len(array.shape) > 1:
+                means = np.zeros(array.shape[1])
+            else:
+                means = 0
+        elif type is 'mean':
+            means = np.average(array, axis=0)
 
-    def __init__(self, sample_frequency=100, window_length=2.0, degree_of_overlap=0.0):
-        self.sample_frequency = sample_frequency
-        self.window_size = int(round(window_length * sample_frequency))
-        self.step_size = int(round((1 - degree_of_overlap) * self.window_size))
+        crossings = []
+        for i in range(1, array.shape[0]):
+            crossings.append(np.abs(np.sign(array[i] - means) - np.sign(array[i - 1] - means)))
+
+        final_crossing_rate = np.sum(crossings, axis=0) / (array.shape[0] - 1)
+
+        return final_crossing_rate
+
+    return crossing_rate
+
+
+def root_square_mean(array):
+    squares = np.square(array)
+    means = np.average(squares, axis=0)
+    square_roots = np.sqrt(means)
+
+    return square_roots
+
+
+def energy(array):
+    means = np.average(array, axis=0)
+    calibrated_values = array - means
+    squared = np.square(calibrated_values)
+    axis_by_axis_energy = np.sqrt(np.average(squared, axis=0))
+
+    average_energy = np.average(axis_by_axis_energy)
+
+    return average_energy
+
+
+def median(array):
+    return np.median(array, axis=0)
+
+
+def pearson_correlation(array):
+    coefs = np.corrcoef(array, rowvar=0)
+
+    results = []
+
+    for i in range(array.shape[1]):
+        for j in range(i + 1, array.shape[1]):
+            j_ = coefs[i, j]
+
+            if np.isnan(j_):
+                j_ = 0
+
+            results.append(j_)
+
+    return np.array(results)
+
+
+def skewness(array):
+    # Taken from Wearable Mobility Monitoring Using a Multimedia Smartphone Platform by Hache et al
+    return scipy.stats.skew(array, axis=0)
+
+
+def maxmin_range(array):
+    return np.max(array, axis=0) - np.min(array, axis=0)
+
+
+def interquartile_range(array):
+    q75, q25 = np.percentile(array, [75, 25], axis=0)
+    return q75 - q25
+
+
+def magnitude_avg_and_std(array):
+    magnitude = np.linalg.norm(array, axis=1)
+    return np.average(magnitude), np.std(magnitude)
+
+
+def gravity_vector(array):
+    g = np.zeros_like(array)
+
+    for i in range(1, array.shape[0]):
+        g[i] = 0.9 * g[i - 1] + 0.1 * array[i]
+
+    return np.average(g, axis=0)
+
+
+def frequency_domain_factory(sample_rate):
+    def frequency_domain_features(array):
+        fourier_transform = np.fft.rfft(array, axis=0)
+        frequency_powers = np.abs(fourier_transform)
+
+        means = np.mean(frequency_powers, axis=0)
+        stds = np.std(frequency_powers, axis=0)
+
+        max_power = np.max(frequency_powers, axis=0)
+        median_power = np.median(frequency_powers, axis=0)
+
+        sample_spacing = 1 / sample_rate
+        frequencies = np.fft.rfftfreq(array.shape[0], sample_spacing)
+
+        spectral_centroid = np.sum(frequency_powers * frequencies[:, np.newaxis], axis=0) / np.sum(frequency_powers,
+                                                                                                   axis=0)
+
+        for i in range(len(spectral_centroid)):
+            if not np.isfinite(spectral_centroid[i]):
+                spectral_centroid[i] = 0
+
+        dominant_frequencies_indices = np.argmax(frequency_powers, axis=0)
+        dominant_frequencies = np.array([frequencies[i] for i in dominant_frequencies_indices])
+
+        frequency_power_squares = np.square(frequency_powers, np.zeros_like(frequency_powers)) / frequency_powers.shape[
+            0]
+        p_i = frequency_power_squares / np.sum(frequency_power_squares, axis=0)
+
+        entropy = scipy.stats.entropy(p_i)
+
+        for i in range(len(entropy)):
+            if not np.isfinite(entropy[i]):
+                entropy[i] = 0
+
+        return np.hstack([means, stds, max_power, median_power, spectral_centroid, dominant_frequencies, entropy])
+
+    return frequency_domain_features
+
+
+class DataLoader:
+    functions = {
+        'means_and_std': [means_and_std_factory(False)],
+        'abs_means_and_std': [means_and_std_factory(True)],
+        'peak_acceleration': [peak_acceleration],
+        'most_common': [most_frequent_value],
+        'zero_crossing_rate': [crossing_rate_factory('zero')],
+        'mean_crossing_rate': [crossing_rate_factory('mean')],
+        'root_square_mean': [root_square_mean],
+        'energy': [energy],
+        'median': [median],
+        'skewness': [skewness],
+        'correlation': [pearson_correlation],
+        'maxmin_range': [maxmin_range],
+        'interquartile_range': [interquartile_range],
+        'magnitude_avg_and_std': [magnitude_avg_and_std],
+        'gravity_vector': [gravity_vector]
+    }
+
+    def __init__(self, sample_rate=100, window_length=2.0, degree_of_overlap=0.0):
+        self.sample_rate = sample_rate
+        self.window_samples = int(round(window_length * sample_rate))
+        self.step_size = int(round((1 - degree_of_overlap) * self.window_samples))
+        self.functions["frequency_features_v1"] = [frequency_domain_factory(self.sample_rate)]
 
     def read_data(self, file_path, func_keywords, abs_vals=False, dtype="float", relabel_dict=None):
         sensor_data = np.loadtxt(fname=file_path, delimiter=",", dtype=dtype)
@@ -92,26 +242,23 @@ class DataLoader:
             for k in relabel_dict:
                 np.place(sensor_data, sensor_data == k, [relabel_dict[k]])
 
-        if abs_vals:
-            sensor_data = abs(sensor_data)
-
         if not func_keywords:
             return sensor_data
 
         functions = []
 
         if len(sensor_data.shape) > 1:
-            column_combinations = generate_all_integer_combinations(sensor_data.shape[1])
+            column_index_combinations = generate_all_integer_combinations(sensor_data.shape[1])
 
-            self.functions["column_products"] = [column_product_factory(t) for t in column_combinations]
+            self.functions["column_products"] = [column_product_factory(t) for t in column_index_combinations]
 
-        for name in func_keywords:
+        for name in sorted(func_keywords):
             functions += self.functions[name]
 
         all_features = []
 
         for window_start in range(0, len(sensor_data), self.step_size):
-            window_end = window_start + self.window_size
+            window_end = window_start + self.window_samples
             if window_end > len(sensor_data):
                 break
             window = sensor_data[window_start:window_end]
@@ -119,14 +266,61 @@ class DataLoader:
             extracted_features = [func(window) for func in functions]
             all_features.append(np.hstack(extracted_features))
 
-        return np.vstack(all_features)
+        one_large_array = np.vstack(all_features)
+
+        if abs_vals:
+            np.absolute(one_large_array, one_large_array)
+
+        return one_large_array
 
     def read_sensor_data(self, file_path, abs_vals=False):
-        if abs_vals:
-            keywords = ["means_and_std", "peak_acceleration", "column_products"]
-        else:
-            keywords = ["means_and_std", "abs_means_and_std", "peak_acceleration", "column_products"]
-        return self.read_data(file_path, keywords, abs_vals=abs_vals)
+        keywords = ["means_and_std", "abs_means_and_std", "peak_acceleration", "column_products", "skewness",
+                    "zero_crossing_rate", "mean_crossing_rate", "root_square_mean", "energy", "median", "maxmin_range",
+                    "interquartile_range", "magnitude_avg_and_std", "correlation", "frequency_features_v1"]
+
+        numpy_file_string = file_path + '_' + str(self.sample_rate) + '_' + str(self.window_samples) + '_' \
+                             + str(self.step_size) + '_may30thfeatures.pickle'
+
+        if os.path.exists(numpy_file_string):
+            print("Loading from savefile")
+            with open(numpy_file_string, "r") as f:
+                features = pickle.load(f)
+                return features
+
+        features = self.read_data(file_path, keywords, abs_vals=abs_vals)
+
+        print("Saving features")
+        with open(numpy_file_string, "w") as f:
+            pickle.dump(features, f)
+
+        return features
 
     def read_label_data(self, file_path, relabel_dict):
         return self.read_data(file_path, ["most_common"], dtype="int", relabel_dict=relabel_dict).ravel()
+
+
+if __name__ == "__main__":
+    dl = DataLoader()
+
+    """
+    for i in range(1, 17):
+        if i == 2 or i == 4: continue
+
+        if i < 10:
+            subject_id = "S0" + str(i)
+        else:
+            subject_id = "S" + str(i)
+        print(subject_id)
+        dl.read_sensor_data(os.path.join(PROJECT_ROOT, "DATA", "stroke_patients", subject_id, subject_id + "_LB.csv"))
+    """
+
+    # dl.read_data(os.path.join(PROJECT_ROOT, "DATA", "stroke_patients", "S01", "S01_LB.csv"), func_keywords=[])
+
+    # x = np.ones(10)
+    sin_x = np.array([0, 1, 0, -1])
+    sins = np.array([sin_x, sin_x, sin_x]).transpose()
+    print(sins)
+
+    # x = np.arange(12)
+    # x = np.reshape(x, (4, 3))
+    print(dl.frequency_domain_features(sins))

@@ -194,12 +194,14 @@ def walk_and_make_average_for_all_tests(path):
     test_dict = defaultdict(_subtestfactory)
 
     for r, d, fs in os.walk(path):
-        if os.path.basename(r) in ["best_individual", "general_population", "adaptation"]:
+        if "_sensors" in r: continue
+        if os.path.basename(r) in ["best_individual", "general_population", "mix_in", "adaptation"]:
             strategy = os.path.basename(r)
             parent_folder = os.path.dirname(r)
             sub_test_name = os.path.basename(parent_folder)
             test_name = os.path.basename(os.path.dirname(parent_folder))[15:]
             for file_path in fs:
+                print(file_path)
                 individual_name = os.path.splitext(file_path)[0]
                 with open(os.path.join(r, file_path), "r") as f:
                     my_dict = json.load(f)
@@ -246,7 +248,7 @@ def output_tabular_for_statistic_folder(path):
     :param path: Path to a test folder
     :return: 
     """
-    order = ("general_population", "adaptation", "best_individual")
+    order = ("general_population", "mix_in", "adaptation", "best_individual")
 
     score_dict = dict()
 
@@ -266,10 +268,10 @@ def output_tabular_for_statistic_folder(path):
 
     rows.sort(key=lambda x: x[1], reverse=True)
 
-    print("\\begin{tabular}{|c|c|c|c|c|c|c|c|}")
+    print("\\begin{tabular}{|c|c|c|c|c|c|c|c|c|}")
     print("\t\\hline")
-    #print("\t", " & ".join(["lb", "lt", "rt", "lw", "rw", "GP", "MP", "SP"]), "\\\\")
-    print("\t", " & ".join(["lb", "at", "ut", "aw", "uw", "GP", "MP", "SP"]), "\\\\")
+    #print("\t", " & ".join(["lb", "lt", "rt", "lw", "rw", "LOSO", "Mix-in", "MP", "SP"]), "\\\\")
+    print("\t", " & ".join(["lb", "at", "ut", "aw", "uw", "LOSO", "Mix-in", "MP", "SP"]), "\\\\")
     print("\t\\hline")
     for r in rows:
         xs = convert_boolean_array_to_string_array(convert_key_to_boolean_array(r[0]))
@@ -278,10 +280,66 @@ def output_tabular_for_statistic_folder(path):
     print("\\end{tabular}")
 
 
+def make_tabular_with_difference(path, path2):
+    """
+
+    :param path: Path to a test folder
+    :return:
+    """
+    score_dict = get_score_dict(path)
+    score_dict2 = get_score_dict(path2)
+
+    rows = make_rows_from_score_dict(score_dict)
+    rows2 = make_rows_from_score_dict(score_dict2)
+
+    print("\\begin{tabular}{|c|c|c|c|c|c|c|c|c|}")
+    print("\t\\hline")
+    # print("\t", " & ".join(["lb", "lt", "rt", "lw", "rw", "LOSO", "Mix-in", "MP", "SP"]), "\\\\")
+    print("\t", " & ".join(["lb", "at", "ut", "aw", "uw", "LOSO", "Mix-in", "MP", "SP"]), "\\\\")
+    print("\t\\hline")
+    for r1, r2 in zip(rows, rows2):
+        xs = convert_boolean_array_to_string_array(convert_key_to_boolean_array(r1[0]))
+
+        print("\t", " & ".join(xs + row_difference(r1[1:], r2[1:])), "\\\\")
+    print("\t\\hline")
+    print("\\end{tabular}")
+
+
+def row_difference(array1, array2):
+    return ["%0.2f (%0.3f)" % (float(a), round(float(a) - float(b), 2)) for a, b in zip(array1, array2)]
+
+
+def make_rows_from_score_dict(score_dict):
+    rows = []
+    for sub_test in score_dict:
+        rows.append([sub_test] + score_dict[sub_test])
+    rows.sort(key=lambda x: x[1], reverse=True)
+    return rows
+
+
+def get_score_dict(path):
+    order = ("general_population", "mix_in", "adaptation", "best_individual")
+    score_dict = dict()
+    for sub_test in os.listdir(path):
+        sub_test_scores = []
+        for approach in order:
+            with open(os.path.join(path, sub_test, approach, "overall.json"), "r") as f:
+                accuracy = json.load(f)["accuracy"]
+            accuracy_as_percentage_string = str(round(accuracy * 100, 2))
+            sub_test_scores.append(accuracy_as_percentage_string)
+
+        score_dict[sub_test] = sub_test_scores
+    return score_dict
+
+
 if __name__ == "__main__":
-    #walk_and_make_average_for_all_tests(os.path.join(VAGESHAR_ROOT, "statistics"))
+    walk_and_make_average_for_all_tests(os.path.join(VAGESHAR_ROOT, "loso_statistics"))
 
+
+    """
     for i in range(5):
-        output_tabular_for_statistic_folder(
-            os.path.join(VAGESHAR_ROOT, "average_statistics", str(i + 1) + "_sensors_affected"))
-
+        make_tabular_with_difference(
+            os.path.join(VAGESHAR_ROOT, "average_statistics", str(i + 1) + "_sensors_affected"),
+            os.path.join(VAGESHAR_ROOT, "average_statistics", str(i + 1) + "_sensors_no_stairs")
+        )
+    """
