@@ -5,12 +5,6 @@ from collections import Counter
 
 import scipy.stats
 
-from definitions import PROJECT_ROOT
-import os
-
-import cPickle
-import pickle
-
 
 def generate_all_integer_combinations(stop_integer):
     combinations_of_certain_length = dict()
@@ -278,49 +272,7 @@ class DataLoader:
                     "zero_crossing_rate", "mean_crossing_rate", "root_square_mean", "energy", "median", "maxmin_range",
                     "interquartile_range", "magnitude_avg_and_std", "correlation", "frequency_features_v1"]
 
-        numpy_file_string = file_path + '_' + str(self.sample_rate) + '_' + str(self.window_samples) + '_' \
-                             + str(self.step_size) + '_may30thfeatures.pickle'
-
-        if os.path.exists(numpy_file_string):
-            print("Loading from savefile")
-            with open(numpy_file_string, "r") as f:
-                features = pickle.load(f)
-                return features
-
-        features = self.read_data(file_path, keywords, abs_vals=abs_vals)
-
-        print("Saving features")
-        with open(numpy_file_string, "w") as f:
-            pickle.dump(features, f)
-
-        return features
+        return self.read_data(file_path, keywords, abs_vals=abs_vals)
 
     def read_label_data(self, file_path, relabel_dict):
         return self.read_data(file_path, ["most_common"], dtype="int", relabel_dict=relabel_dict).ravel()
-
-
-if __name__ == "__main__":
-    dl = DataLoader()
-
-    """
-    for i in range(1, 17):
-        if i == 2 or i == 4: continue
-
-        if i < 10:
-            subject_id = "S0" + str(i)
-        else:
-            subject_id = "S" + str(i)
-        print(subject_id)
-        dl.read_sensor_data(os.path.join(PROJECT_ROOT, "DATA", "stroke_patients", subject_id, subject_id + "_LB.csv"))
-    """
-
-    # dl.read_data(os.path.join(PROJECT_ROOT, "DATA", "stroke_patients", "S01", "S01_LB.csv"), func_keywords=[])
-
-    # x = np.ones(10)
-    sin_x = np.array([0, 1, 0, -1])
-    sins = np.array([sin_x, sin_x, sin_x]).transpose()
-    print(sins)
-
-    # x = np.arange(12)
-    # x = np.reshape(x, (4, 3))
-    print(dl.frequency_domain_features(sins))
