@@ -53,7 +53,7 @@ class VARS(object):
     CNN_INPUT_SIZE = 600
     CNN_OUTPUT_SIZE = 10
     # Number of training iterations. In our report, we have used 20000.
-    CNN_NUMBER_OF_ITERATIONS = 20000
+    CNN_NUMBER_OF_ITERATIONS = 1
     # Number of instanses used between changing training parameters
     CNN_BATCH_SIZE = 100
     # Length of kernel in horizontal orientation

@@ -47,7 +47,7 @@ def train(subject_list=None, normalize_sensor_data=False):
     cnn.close_session()
     del cnn
 
-    print "Training finished"
+    print("Training finished")
 
 
 if __name__ == "__main__":

@@ -103,7 +103,7 @@ def load_windows(data_type, oversampling, subjects_path, subject_list=None):
         for activity in activities:
             activity_length = sum(data_label[::, activity])
             if activity_length > max_length:
-                max_length = activity_length
+                max_length = int(activity_length)
 
         data_sensor_new = np.zeros([max_length * len(activities), 600])
         data_label_new = np.zeros([max_length * len(activities), len(activities)])
@@ -151,6 +151,7 @@ def generate_windows_for_one_subject(subject_path, data_type, viterbi, normalize
     if data_type != "predicting":
         df_label = load_dataframe(subject_path + '/' + subject_files_dictionary[V.LABEL])
 
+
     # Remove activities
     if data_type == "training" and not viterbi:
         df_sensor_1, df_sensor_2, df_label = remove_activities(df_sensor_1, df_sensor_2, df_label,
@@ -184,6 +185,8 @@ def convert_label(l):
     else:
         activity = 1
         n[activity - 1] = -100
+        print(n)
+        exit()
     return n
 
 
@@ -194,7 +197,6 @@ def create_window_label(df_label, folder, length, overlap):
     new_window = np.zeros([len(df_window), V.NUMBER_OF_ACTIVITIES])
     for i in range(0, len(window)):
         new_window[i] = convert_label(find_most_common_label(window[i]))
-
     # df_window = df_window.apply(find_most_common_label,axis=1)
     # df_window = df_window.apply(convert_label)
     df_window = pd.DataFrame(new_window)

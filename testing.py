@@ -119,7 +119,8 @@ def get_score(result_matrix):
 
     for i in range(0, len(predicted)):
         if predicted[i] == actual[i]:
-            true_positives[actual[i]] += 1.0
+            print actual[i]
+            true_positives[int(actual[i])] += 1.0
 
         for activity in activities:
             if actual[i] != activity and predicted[i] != activity:
@@ -227,3 +228,4 @@ def show_confusion_matrix(result_matrix, index, save_path, percentage_labels=Fal
 
 if __name__ == "__main__":
     test()
+test()

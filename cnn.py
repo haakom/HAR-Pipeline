@@ -178,7 +178,7 @@ class ConvolutionalNeuralNetwork(object):
     def train_network(self):
         for i in range(self._iteration_size):
             batch = self._data_set.next_batch(self._batch_size)
-            self._session.run(self._train_step, feed_dict={self._x: batch[0],
+            print self._session.run(self._train_step, feed_dict={self._x: batch[0],
                                                            self._y: batch[1],
                                                            self._keep_prob: 0.5})
 
