@@ -47,25 +47,22 @@ def build_dataset(validation_subject, path_to_data, sequence_length,
                                                                               generate_one_hot=generate_one_hot,
                                                                               use_most_common_label=use_most_common_label)
     if normalize_data:
-        training_examples = normalize_dataset(dataset, training_examples,
-                                              use_most_common_label)
-        validation_examples = normalize_dataset(dataset, validation_examples,
-                                                use_most_common_label)
+        if print_stats:
+            print "Normalizing data..."
+        training_examples = normalize_dataset(dataset, training_examples)
+        validation_examples = normalize_dataset(dataset, validation_examples)
 
 
 
     return training_examples, training_lables, validation_examples, validation_labels
 
-def normalize_dataset(dataset, examples, use_most_common_label):
+def normalize_dataset(dataset, examples):
     mean_list, std_list = get_mean_and_std_lists(dataset)
     print examples.shape
     for i in range(len(mean_list)):
-        print "prev mean:" + str(np.mean(examples[:,:,i]))
-        print "prev std:" + str(np.std(examples[:, :, i]))
         examples[:,:, i] -= mean_list[i]
         examples[:,:, i] /= std_list[i]
-        print "new mean:" + str(np.mean(examples[:, :, i]))
-        print "new std:" + str(np.std(examples[:, :, i]))
+
     return examples
 
 def select_csv_files(path_to_data):
