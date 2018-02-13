@@ -4,11 +4,14 @@ import numpy as np
 import glob
 import math
 from collections import Counter
+from TRAINING_NORMALIZATION import get_mean_and_std_lists
 
 NUM_TRAINING_FEATURES = 6
 NUM_LABELS = 1
 
-def build_dataset(validation_subject, path_to_data, sequence_length, num_classes, print_stats = False, generate_one_hot=True, use_most_common_label=True):
+def build_dataset(validation_subject, path_to_data, sequence_length,
+                  num_classes, print_stats = False, generate_one_hot=True,
+                  use_most_common_label=True, normalize_data=True, dataset=1):
     """
     Builds dataset from a list of paths to data points. Splits into training and validation data.
     :param validation_subject: Which subject is used for validation
@@ -19,15 +22,51 @@ def build_dataset(validation_subject, path_to_data, sequence_length, num_classes
     """
 
     training_examples_csv, training_labels_csv = select_csv_files(path_to_data)
+    if validation_subject == None:
+        training_examples, training_lables = generate_examples_and_labels(training_examples_csv, training_labels_csv,
+                                                                          sequence_length, num_classes,
+                                                                          print_stats=print_stats,
+                                                                          generate_one_hot=generate_one_hot,
+                                                                          use_most_common_label=use_most_common_label)
+        validation_examples = None
+        validation_labels = None
+    else:
 
-    training_examples_csv, training_labels_csv, validation_examples_csv, validation_labels_csv = \
-        split_into_training_validation(training_examples_csv, training_labels_csv, validation_subject)
-    training_examples, training_lables = generate_examples_and_labels(training_examples_csv, training_labels_csv, sequence_length, num_classes, print_stats=print_stats, generate_one_hot=generate_one_hot, use_most_common_label=use_most_common_label)
-    validation_examples, validation_labels = generate_examples_and_labels(validation_examples_csv, validation_labels_csv, sequence_length, num_classes, print_stats=print_stats, generate_one_hot=generate_one_hot, use_most_common_label=use_most_common_label)
+        training_examples_csv, training_labels_csv, validation_examples_csv, validation_labels_csv = \
+            split_into_training_validation(training_examples_csv, training_labels_csv, validation_subject)
+
+        training_examples, training_lables = generate_examples_and_labels(training_examples_csv, training_labels_csv,
+                                                                          sequence_length, num_classes,
+                                                                          print_stats=print_stats,
+                                                                          generate_one_hot=generate_one_hot,
+                                                                          use_most_common_label=use_most_common_label)
+
+        validation_examples, validation_labels = generate_examples_and_labels(validation_examples_csv,
+                                                                              validation_labels_csv, sequence_length,
+                                                                              num_classes, print_stats=print_stats,
+                                                                              generate_one_hot=generate_one_hot,
+                                                                              use_most_common_label=use_most_common_label)
+    if normalize_data:
+        training_examples = normalize_dataset(dataset, training_examples,
+                                              use_most_common_label)
+        validation_examples = normalize_dataset(dataset, validation_examples,
+                                                use_most_common_label)
 
 
 
     return training_examples, training_lables, validation_examples, validation_labels
+
+def normalize_dataset(dataset, examples, use_most_common_label):
+    mean_list, std_list = get_mean_and_std_lists(dataset)
+    print examples.shape
+    for i in range(len(mean_list)):
+        print "prev mean:" + str(np.mean(examples[:,:,i]))
+        print "prev std:" + str(np.std(examples[:, :, i]))
+        examples[:,:, i] -= mean_list[i]
+        examples[:,:, i] /= std_list[i]
+        print "new mean:" + str(np.mean(examples[:, :, i]))
+        print "new std:" + str(np.std(examples[:, :, i]))
+    return examples
 
 def select_csv_files(path_to_data):
     """
@@ -142,7 +181,6 @@ def fetch_training_data(examples_csv, print_stats):
         else:
             thigh = examples_csv[i+1]
             back = examples_csv[i]
-
         if print_stats:
             print thigh + " " + back
         # Read both thigh and back datafiles

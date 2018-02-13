@@ -7,17 +7,16 @@ import sys
 import tensorflow as tf
 
 # Load training files
-BATCH_SIZE = 4096
-NUM_ACTIVITIES = 20
+BATCH_SIZE = 1024
+NUM_ACTIVITIES = 19
 NUM_FEATURES = 6
 NUM_EPOCHS = 64
-use_most_common_label_in_sequence = True
-SEQUENCE_LENGTH = 500
+predict_sequences = False
+SEQUENCE_LENGTH = 100
 ALL_SUBJECTS = ["006", "008", "010", "011", "012", "013",
                 "014", "015", "016", "017", "018", "019",
                 "020", "021", "022"]
 
-print not use_most_common_label_in_sequence
 
 
 evaluation_list = []  # List for storing evalutations for each subject in
@@ -34,7 +33,7 @@ for subject in ALL_SUBJECTS:
         nn1 = CuDNNLSTM(units=3, return_sequences=True)(nn_in1)
         nn2 = CuDNNLSTM(units=3, return_sequences=True)(nn_in2)
         nn = Concatenate(axis=2)([nn1, nn2])
-        nn = CuDNNLSTM(units=NUM_ACTIVITIES, return_sequences=not use_most_common_label_in_sequence)(nn)
+        nn = CuDNNLSTM(units=NUM_ACTIVITIES, return_sequences=predict_sequences)(nn)
         nn = Activation(activation="softmax")(nn)
     else:
         from keras.layers import LSTM
@@ -45,26 +44,33 @@ for subject in ALL_SUBJECTS:
         nn1 = LSTM(units=3, return_sequences=True)(nn_in1)
         nn2 = LSTM(units=3, return_sequences=True)(nn_in2)
         nn = Concatenate(axis=2)([nn1, nn2])
-        nn = LSTM(units=NUM_ACTIVITIES, return_sequences=not use_most_common_label_in_sequence)(nn)
+        nn = LSTM(units=NUM_ACTIVITIES, return_sequences=predict_sequences)(nn)
         nn = Activation(activation="softmax")(nn)
 
     model = Model(inputs=[nn_in1, nn_in2], outputs=nn)
     adgrad_optimizer = keras.optimizers.adagrad(lr=0.01)
-    model.compile(loss="categorical_crossentropy", optimizer=adgrad_optimizer, metrics=["accuracy"])
+    model.compile(loss="categorical_crossentropy", optimizer="adagrad", metrics=["accuracy"])
 
     model.summary()
     # Automatic selection of dataset location depending on which machine the code is running on
     print "Reading data..."
     if "guest" not in sys.path[0]:
-        train_x, train_y, val_x, val_y = rd.build_dataset(subject, "/lhome/haakom/HUNT_Project/HAR-Pipeline/DATA/combined_in_and_out_of_lab", SEQUENCE_LENGTH, NUM_ACTIVITIES, use_most_common_label=use_most_common_label_in_sequence, print_stats=True)
+        train_x, train_y, val_x, val_y = rd.build_dataset(subject, "/lhome/haakom/HUNT_Project/HAR-Pipeline/DATA/combined_in_and_out_of_lab",
+                                                          SEQUENCE_LENGTH, NUM_ACTIVITIES,
+                                                          use_most_common_label=not predict_sequences,
+                                                          print_stats=True,
+                                                          normalize_data=True,
+                                                          dataset=1)
     else:
-        train_x, train_y, val_x, val_y  = rd.build_dataset(subject, "/home/guest/Documents/HAR-Pipeline/DATA/combined_in_and_out_of_lab", SEQUENCE_LENGTH, NUM_ACTIVITIES, use_most_common_label=use_most_common_label_in_sequence, print_stats=True)
+        train_x, train_y, val_x, val_y  = rd.build_dataset(subject, "/home/guest/Documents/HAR-Pipeline/DATA/combined_in_and_out_of_lab",
+                                                           SEQUENCE_LENGTH, NUM_ACTIVITIES,
+                                                           use_most_common_label=not predict_sequences,
+                                                           print_stats=False,
+                                                           normalize_data=True,
+                                                           dataset=1)
 
-    print train_x.shape
-    print train_y.shape
 
-    print val_x.shape
-    print val_y.shape
+
 
 
     # Separate thigh and back training data into separate "channels"
@@ -90,9 +96,6 @@ for subject in ALL_SUBJECTS:
         print "It's epoch " + str(epoch+1) + "/" + str(NUM_EPOCHS) + " gaddamit! Not 1/1!"
         model.fit([train_x1, train_x2], train_y, epochs=1, batch_size=BATCH_SIZE) # Training
         loss, accuracy =  model.evaluate([val_x1, val_x2], val_y, batch_size=BATCH_SIZE, verbose=0) # Validation
-        print model.predict([val_x1, val_x2])[0]
-        print val_y[0]
-        exit()
         print "Validation accuracy: " + str(accuracy)
         epochs_evaluation_list.append(accuracy)
 
