@@ -7,13 +7,13 @@ import sys
 import tensorflow as tf
 
 # Load training files
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 NUM_ACTIVITIES = 19
 NUM_FEATURES = 6
 NUM_EPOCHS = 512
 predict_sequences = False
-SEQUENCE_LENGTH = 100
-ALL_SUBJECTS = ["006", "008", "010", "011", "012", "013",
+SEQUENCE_LENGTH = 200
+ALL_SUBJECTS = ["006", "008", "009", "010", "011", "012", "013",
                 "014", "015", "016", "017", "018", "019",
                 "020", "021", "022"]
 
@@ -43,11 +43,11 @@ for subject in ALL_SUBJECTS:
         # Build LSTM RNN CPU
         nn_in1 = Input(shape=[SEQUENCE_LENGTH, NUM_FEATURES / 2])
         nn_in2 = Input(shape=[SEQUENCE_LENGTH, NUM_FEATURES / 2])
-        nn1 = Bidirectional(LSTM(units=5, return_sequences=True, recurrent_dropout=0.5))(nn_in1)
-        nn2 = Bidirectional(LSTM(units=5, return_sequences=True, recurrent_dropout=0.5))(nn_in2)
+        nn1 = Bidirectional(LSTM(units=5, return_sequences=True))(nn_in1)
+        nn2 = Bidirectional(LSTM(units=5, return_sequences=True))(nn_in2)
         nn = Concatenate(axis=2)([nn1, nn2])
-        nn = Bidirectional(LSTM(units=10, return_sequences=predict_sequences, recurrent_dropout=0.5))(nn)
-        nn = Dropout(0.5)(nn)
+        nn = Bidirectional(LSTM(units=10, return_sequences=predict_sequences))(nn)
+        nn = Dropout(0.9)(nn)
         nn = Dense(NUM_ACTIVITIES)(nn)
         nn = Activation(activation="softmax")(nn)
 
@@ -99,11 +99,11 @@ for subject in ALL_SUBJECTS:
                               epochs=NUM_EPOCHS,
                               batch_size=BATCH_SIZE,
                               validation_data=([val_x1, val_x2], val_y),
-                              callbacks=[keras.callbacks.EarlyStopping(monitor='val_acc',
-                                                                       min_delta=0.0001,
+                              callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                                       min_delta=0.001,
                                                                        patience=patience_factor,
                                                                        verbose=1,
-                                                                       mode='max')]) # Training
+                                                                       mode='min')]) # Training
     print "Appending: " + str(train_history.history['val_acc'][-(patience_factor+1)]) + " to eval list"
     evaluation_list.append(train_history.history['val_acc'][-(patience_factor+1)])
 

@@ -5,7 +5,7 @@ import read_and_plot_data as rpdata
 import fetch_dataframe_stats as dfstats
 import matplotlib.mlab as mlab
 import math
-from downsample_signal import get_indexes, sample_every_nth, decimate_data, resample_data, average_two_and_two
+from downsampling_functions import get_indexes, sample_every_nth, decimate_data, resample_data, average_two_and_two
 
 hundred_means = []
 hundred_vars = []
