@@ -5,6 +5,8 @@ import read_data as rd
 import numpy as np
 import sys
 import tensorflow as tf
+from Custom_Callbacks import Overfitting_callback
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 
 # Load training files
 BATCH_SIZE = 1024
@@ -14,7 +16,7 @@ NUM_EPOCHS = 10
 predict_sequences = False
 SEQUENCE_LENGTH = 100
 normalize_data = True
-ALL_SUBJECTS = ["006", "008", "010", "011", "012", "013",
+ALL_SUBJECTS = ["006", "008", "009", "010", "011", "012", "013",
                 "014", "015", "016", "017", "018", "019",
                 "020", "021", "022"]
 
@@ -63,7 +65,8 @@ for subject in ALL_SUBJECTS:
         nn = Activation(activation="softmax")(nn)
 
     model = Model(inputs=[nn_in1, nn_in2], outputs=nn)
-    model.compile(loss="categorical_crossentropy", optimizer="adagrad", metrics=["accuracy"])
+    adagrad = keras.optimizers.adagrad(lr=0.1)
+    model.compile(loss="categorical_crossentropy", optimizer=adagrad, metrics=["accuracy"])
 
     model.summary()
     # Automatic selection of dataset location depending on which machine the code is running on
@@ -81,6 +84,7 @@ for subject in ALL_SUBJECTS:
                                                            use_most_common_label=not predict_sequences,
                                                            print_stats=False,
                                                            normalize_data=normalize_data,
+                                                           generate_one_hot=True,
                                                            dataset=1)
 
     print train_x.shape
@@ -107,18 +111,16 @@ for subject in ALL_SUBJECTS:
             val_x2[example, i, :] = val_x[example, i, 3:6]
 
     epochs_evaluation_list = []
-
-    history = model.fit([train_x1, train_x2], train_y,
-              epochs=10,
+    ESpatience = 10
+    history= model.fit([train_x1, train_x2], train_y,
+              epochs=1000,
               batch_size=BATCH_SIZE,
               validation_data=([val_x1, val_x2], val_y),
-              callbacks=[keras.callbacks.EarlyStopping(monitor='val_acc',
-                                                       min_delta=0.5,
-                                                       patience=1,
-                                                       verbose=1,
-                                                       mode='max')])  # Training
+              callbacks=[Overfitting_callback(verbose=1, patience=3),
+                         ReduceLROnPlateau(verbose=1, patience=2),
+                         EarlyStopping(verbose=1, patience=ESpatience)])  # Training
     print history.history
-    print history.history['val_acc'][-2]
+    print history.history['val_acc'][-ESpatience]
     exit()
     loss, accuracy = model.evaluate([val_x1, val_x2], val_y, batch_size=BATCH_SIZE, verbose=0)  # Validation
     print "Validation accuracy: " + str(accuracy)

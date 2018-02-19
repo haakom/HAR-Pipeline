@@ -136,7 +136,7 @@ def average_two_and_two(data, indexes=None):
     new_data = np.zeros(data.shape[0]/2, dtype=np.float64)
 
     iterator= 0
-    for i in [x for x in range(len(data)) if x % 2 == 0]:
+    for i in [x for x in range(len(data)-1) if x % 2 == 0]:
         #print i
         new_data[iterator] = (np.float64(data[i])+np.float64(data[i+1]))/np.float64(2)
         #print str(data[i]) + str(data[i+1]) + ": " +str(new_data[iterator])

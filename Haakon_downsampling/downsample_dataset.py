@@ -4,12 +4,12 @@ import downsampling_functions as df
 from Haakon_Recurrent_ANN import read_data as rd
 import os
 
-path_to_data = "/home/guest/Documents/HUNT4-data/HUNT-Training-Data-CSV/"
+path_to_data = "/home/guest/Documents/dataset/"
 store_data_path_builder = "/home/guest/Documents/Downsampled-data/"
-downsampling_functions = [df.resample_data]#[df.decimate_data, df.resample_poly_data, df.average_two_and_two,
-                          #df.sample_every_nth,df.resample_data]
-downsampling_function_names = ["RESAMPLE"]#["DECIMATED", "RESAMPLE_POLY", "TWO_AND_TWO_AVG",
-                              #"EVERY_OTHER", "RESAMPLE"]
+downsampling_functions = [df.average_two_and_two,
+                          df.sample_every_nth,df.resample_data]
+downsampling_function_names = ["TWO_AND_TWO_AVG",
+                              "EVERY_OTHER", "RESAMPLE"]
 
 
 def do_examples(examples):
@@ -19,7 +19,9 @@ def do_examples(examples):
         if not os.path.isdir(store_data_path+"/"+subject_name):
             os.makedirs(store_data_path+"/"+subject_name)
         new_name =new_name[4:]
-        print new_name
+        #print subject_name
+        #print new_name
+        #print store_data_path+"/"+subject_name+"/"+new_name
         if ".csv.csv" in new_name:
             #print new_name
             new_name = new_name.replace(".csv.csv", ".csv")
@@ -33,7 +35,9 @@ def do_labels(labels):
         if not os.path.isdir(store_data_path+"/"+subject_name):
             os.makedirs(store_data_path+"/"+subject_name)
         new_name =new_name[4:]
-        print new_name
+        #print subject_name
+        #print new_name
+        #print store_data_path+"/"+subject_name+"/"+new_name
         if ".csv.csv" in new_name:
             #print new_name
             new_name = new_name.replace(".csv.csv", ".csv")
@@ -41,7 +45,7 @@ def do_labels(labels):
         label_dataframe.to_csv(store_data_path+"/"+subject_name+"/"+new_name, index=False, header=False)
 
 
-examples, labels = rd.select_csv_files(path_to_data)
+examples, labels = rd.select_csv_files(path_to_data, in_lab=True)
 print examples
 print labels
 iterator = 0

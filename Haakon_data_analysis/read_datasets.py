@@ -34,6 +34,7 @@ def read_dataset(path_to_examples, sequence_length = 0, num_classes = 0, is_stro
                     for name in stroke_names:
                         if name in csv_file:
                             training_examples_csv.append(csv_file)
+
     training_examples, training_lables = generate_examples_and_labels(training_examples_csv, training_labels_csv, is_stroke)
     if is_stroke:
         #print training_examples.shape
@@ -51,6 +52,7 @@ def read_dataset(path_to_examples, sequence_length = 0, num_classes = 0, is_stro
 
 def generate_examples_and_labels(examples_csv, labels_csv, is_stroke):
     training_examples_list = []
+
     training_examples = 0
     if not is_stroke:
         # Iterates over every second element in the training_examples_csv list

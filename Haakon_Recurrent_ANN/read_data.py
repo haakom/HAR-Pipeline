@@ -65,7 +65,7 @@ def normalize_dataset(dataset, examples):
 
     return examples
 
-def select_csv_files(path_to_data):
+def select_csv_files(path_to_data, in_lab = False):
     """
     Separates csvs in a folder to examples and labels
     :param path_to_data: path to training data folder
@@ -83,11 +83,18 @@ def select_csv_files(path_to_data):
     training_examples_csv = []
     training_labels_csv = []
     for csv_file_path in csv_file_paths:
-        for csv_file in csv_file_path:
-            if 'Axivity' in csv_file:
-                training_examples_csv.append(csv_file)
-            else:
-                training_labels_csv.append(csv_file)
+        if in_lab:
+            for csv_file in csv_file_path:
+                if 'labels' in csv_file:
+                    training_labels_csv.append(csv_file)
+                else:
+                    training_examples_csv.append(csv_file)
+        else:
+            for csv_file in csv_file_path:
+                if 'Axivity' in csv_file:
+                    training_examples_csv.append(csv_file)
+                else:
+                    training_labels_csv.append(csv_file)
 
     return training_examples_csv, training_labels_csv
 
@@ -106,9 +113,11 @@ def generate_examples_and_labels(examples_csv, labels_csv, sequence_length, num_
         training_labels_list = fetch_training_labels(labels_csv)
 
     # Converts list of dataframes to list of numpy arrays
-    training_examples = convert_to_numpy_array(training_examples_list)
+    training_examples = convert_to_list_of_numpy_array(training_examples_list)
     if generate_labels:
-        training_labels = convert_to_numpy_array(training_labels_list)
+        training_labels = convert_to_list_of_numpy_array(training_labels_list)
+
+
 
     # Combines list of numpy arrays into a single numpy array
     training_examples = combine_numpy_list_to_single_array(training_examples, sequence_length, NUM_TRAINING_FEATURES)
@@ -118,6 +127,14 @@ def generate_examples_and_labels(examples_csv, labels_csv, sequence_length, num_
             print "Generating labels"
         training_labels = combine_numpy_list_to_single_array(training_labels, sequence_length, NUM_LABELS)
 
+        print training_examples.shape
+        print training_labels.shape
+        # If shapes is not the same
+        #TODO Find out why this is the case for 014
+        if training_examples.shape[0] != training_labels.shape[0]:
+            training_labels = training_labels[0:training_examples.shape[0]]
+        print training_examples.shape
+        print training_labels.shape
         # Relabel sequences with the most commonly occurring label in that sequence
         if use_most_common_label:
             if print_stats:
@@ -212,7 +229,7 @@ def read_csv_file(path_to_file, examples):
         #    print training_example[col].unique()
     return training_example
 
-def convert_to_numpy_array(dataframes_list):
+def convert_to_list_of_numpy_array(dataframes_list):
     """
     Converts from pandas dataframes to numpy arrays
     :param dataframes_list: List of pandas dataframes
@@ -237,8 +254,7 @@ def combine_numpy_list_to_single_array(data_list, sequence_length, num_features)
     data_array = np.concatenate(data_list)
 
     # Remove examples to make number of examples fit within sequence length
-    data_array = data_array[
-                        0:(int(math.floor(data_array.shape[0] / sequence_length)) * sequence_length)]
+    data_array = data_array[0:(int(math.floor(data_array.shape[0] / sequence_length)) * sequence_length)]
 
     # Reshape examples to shape = [examples, sequence_length, 6] for the RNN
     data_array = data_array.reshape(
@@ -254,13 +270,12 @@ def use_most_common_label_in_sequence(training_labels):
     """
     new_training_labels = []
     iter = 0
-    # Create one-hot vectors from the labels
     for i in range(len(training_labels)):
         label = find_most_common_label(training_labels[i])
         new_training_labels.append(label)
         iter += 1
 
-    return new_training_labels
+    return np.asarray(new_training_labels)
 
 def find_most_common_label(l):
     """
@@ -285,12 +300,12 @@ def generate_one_hot_vectors(new_training_labels, num_classes, use_most_common_l
     if use_most_common_label:
         training_labels = []
         for i in range(len(new_training_labels)):
-            zeros = np.zeros((num_classes))
+            zeros = np.zeros((num_classes), dtype=np.int)
             zeros[int(new_training_labels[i]) - 1] = 1
             training_labels.append(zeros)
         training_labels = np.asarray(training_labels)
     else:
-        training_labels=np.zeros(shape=[new_training_labels.shape[0], new_training_labels.shape[1], num_classes])
+        training_labels=np.zeros(shape=[new_training_labels.shape[0], new_training_labels.shape[1], num_classes], dtype=np.int)
         for i in range(len(new_training_labels)):
             for j in range(new_training_labels.shape[1]):
                 training_labels[i, j, [int(new_training_labels[i,j])-1]] = 1
